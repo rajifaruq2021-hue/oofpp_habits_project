@@ -190,9 +190,7 @@ The `analytics.py` module is written in a **functional style**:
 ---
 
 ## GitHub Repository
-https://github.com/YOUR_USERNAME/oofpp_habits_project
-
-*(Replace YOUR_USERNAME with your actual GitHub username after pushing)*
+https://github.com/rajifaruq2021-hue/oofpp_habits_project
 
 ---
 
