@@ -1,0 +1,13 @@
+﻿# I tell git to ignore the database file — it gets created fresh each run
+habits.db
+
+# I tell git to ignore Python's bytecode cache folders
+__pycache__/
+*.pyc
+*.pyo
+
+# I tell git to ignore the pytest cache
+.pytest_cache/
+
+# I tell git to ignore Windows-specific files
+Thumbs.db
