@@ -1,260 +1,207 @@
 """
 habit.py
---------
-I define the main Habit class here.
-A Habit is the core building block of my habit tracker.
-Think of it like a container that holds:
-  - the name of the habit (e.g., "Drink Water")
-  - how often you must do it (daily or weekly)
-  - the date it was created
-  - a list of all the times the user has checked it off (completed it)
+
+I am the Habit class. This file is the main building block of the app.
+Each habit the user creates is stored as one object made from this class.
+
+I use Object Oriented Programming (OOP) here.
+That means I group all the data and actions for a habit together in one place.
+
+When the user runs the app, Python creates one Habit object for every habit.
 """
 
-# I import datetime so I can work with dates and times easily
-from datetime import datetime, date, timedelta
+# I import datetime so I can work with dates and times
+from datetime import datetime, timedelta
 
 
 class Habit:
     """
-    I am the Habit class. I represent ONE habit the user wants to track.
+    I represent one habit that the user wants to track.
 
-    Attributes:
-        name (str):         The name of the habit, e.g. "Exercise".
-        description (str):  A short explanation of what the habit is about.
-        periodicity (str):  How often the habit must be done — "daily" or "weekly".
-        creation_date (str):The date and time when this habit was first created.
-        checkoffs (list):   A list of date-time strings, one for each time
-                            the user marked this habit as done (checked it off).
+    Each habit has:
+        name        : a short label, for example "Morning Run"
+        description : a sentence about why the habit matters
+        periodicity : how often to do it, either "daily" or "weekly"
+        creation_date: the date the habit was first added
+        checkoffs   : a list of timestamps showing when it was completed
     """
 
-    def __init__(self, name: str, description: str, periodicity: str,
-                 creation_date: str = None, checkoffs: list = None):
+    def __init__(self, name, description, periodicity, creation_date=None, checkoffs=None):
         """
-        I use __init__ to set up a brand-new Habit object.
-        This runs automatically whenever I create a new Habit.
+        I set up a new Habit object with the given details.
 
         Args:
-            name (str):         The name of this habit.
-            description (str):  A short description of the habit.
-            periodicity (str):  Either "daily" or "weekly".
-            creation_date (str):The timestamp when this habit was created.
-                                If I leave it empty, I use right now.
-            checkoffs (list):   A list of previous check-off timestamps.
-                                If I leave it empty, I start with an empty list.
+            name (str)          : the habit name, for example "Read a Book"
+            description (str)   : a short sentence about the habit
+            periodicity (str)   : "daily" or "weekly"
+            creation_date (str) : when this habit was created (optional)
+            checkoffs (list)    : list of past completion timestamps (optional)
         """
 
-        # I store the name of the habit (e.g. "Drink 2 Litres of Water")
+        # I store the basic details about this habit
         self.name = name
-
-        # I store a short description so the user knows what this habit is about
         self.description = description
-
-        # I make sure the periodicity is either "daily" or "weekly" — nothing else allowed
-        if periodicity not in ("daily", "weekly"):
-            raise ValueError(
-                f"Periodicity must be 'daily' or 'weekly', but I got '{periodicity}'."
-            )
         self.periodicity = periodicity
 
-        # I record when this habit was created.
-        # If no date was given, I use the current date and time.
-        self.creation_date = creation_date or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # I record when this habit was created
+        # If no date is given, I use today as the creation date
+        if creation_date is None:
+            self.creation_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            self.creation_date = creation_date
 
-        # I start with an empty check-off list if the user did not provide any previous data
-        self.checkoffs = checkoffs if checkoffs is not None else []
+        # I store the list of times the habit was completed
+        # If nothing is given, I start with an empty list
+        if checkoffs is None:
+            self.checkoffs = []
+        else:
+            self.checkoffs = checkoffs
 
-    # ------------------------------------------------------------------
-    # Method 1: Check off the habit (mark it as done for today/this week)
-    # ------------------------------------------------------------------
-    def checkoff(self, timestamp: str = None):
+    def checkoff(self, timestamp=None):
         """
-        I call this method to mark the habit as completed right now.
-        I record the exact date and time so we know when it was done.
+        I mark this habit as done.
+        I add the current time (or a given time) to the list of completions.
 
         Args:
-            timestamp (str): Optional. If I provide a date-time string like
-                             "2024-01-15 09:00:00", I use that. Otherwise I
-                             use the current moment.
+            timestamp (str): the time to record (optional).
+                             If not given, I use right now.
         """
 
-        # I use the timestamp the user gave me, or I create one right now
-        ts = timestamp or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # I use the given time, or the current time if none is given
+        if timestamp is None:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # I add this timestamp to the list of check-offs for this habit
-        self.checkoffs.append(ts)
+        # I add the timestamp to the list of completions
+        self.checkoffs.append(timestamp)
 
-    # ------------------------------------------------------------------
-    # Method 2: Get all the periods (days or weeks) when this habit was done
-    # ------------------------------------------------------------------
-    def get_completed_periods(self) -> list:
+    def get_current_streak(self):
         """
-        I look at all the check-off timestamps and figure out which
-        time periods (days or weeks) the user actually completed this habit.
+        I count how many periods in a row this habit has been completed
+        up to the most recent check-off.
 
-        For a DAILY habit: a "period" is one calendar day (e.g. 2024-01-15).
-        For a WEEKLY habit: a "period" is one ISO calendar week (e.g. 2024-W03).
+        For a daily habit, one period = one day.
+        For a weekly habit, one period = one week.
 
         Returns:
-            list: A sorted list of unique period labels where the habit was done.
+            int: the number of periods completed in a row.
+                 Returns 0 if the habit has never been completed.
         """
 
-        # I create an empty set to collect unique periods (sets avoid duplicates automatically)
-        completed = set()
-
-        # I go through every single check-off timestamp one by one
-        for ts in self.checkoffs:
-            # I convert the string timestamp into a real Python datetime object
-            dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
-
-            if self.periodicity == "daily":
-                # For daily habits, the "period" is just the date (e.g. "2024-01-15")
-                period_label = dt.strftime("%Y-%m-%d")
-            else:
-                # For weekly habits, the "period" is the ISO year + week number
-                # Example: "2024-W03" means week 3 of the year 2024
-                year, week, _ = dt.isocalendar()
-                period_label = f"{year}-W{week:02d}"
-
-            # I add this label to the set (duplicates are ignored automatically)
-            completed.add(period_label)
-
-        # I return the unique periods sorted from oldest to newest
-        return sorted(completed)
-
-    # ------------------------------------------------------------------
-    # Method 3: Calculate the current streak (consecutive periods done)
-    # ------------------------------------------------------------------
-    def get_current_streak(self) -> int:
-        """
-        I calculate how many periods IN A ROW the user has been doing this habit
-        UP TO AND INCLUDING the most recent completed period.
-
-        For example:
-        - If I did a daily habit on Jan 13, 14, 15 and today is Jan 15, streak = 3.
-        - If I missed Jan 14, the streak resets to 1 (only Jan 15 counts).
-
-        Returns:
-            int: The number of consecutive periods completed (the current streak).
-        """
-
-        # I get the list of all completed periods in sorted order
-        completed = self.get_completed_periods()
-
-        # If there are no check-offs at all, the streak is obviously zero
-        if not completed:
+        # I return 0 right away if there are no completions yet
+        if not self.checkoffs:
             return 0
 
-        # I start counting from 1 (the most recent period always counts)
-        streak = 1
-
-        # I look backwards through the list of completed periods (from most recent)
-        # and count how many are consecutive (no gaps)
-        for i in range(len(completed) - 1, 0, -1):
-            # I check if the current period and the previous period are right next to each other
-            if self._are_consecutive(completed[i - 1], completed[i]):
-                # They are consecutive! I add 1 to the streak
-                streak += 1
-            else:
-                # There is a gap — the streak is broken, so I stop counting
-                break
-
-        return streak
-
-    # ------------------------------------------------------------------
-    # Method 4: Calculate the LONGEST streak ever achieved
-    # ------------------------------------------------------------------
-    def get_longest_streak(self) -> int:
-        """
-        I look at ALL the check-off history and find the longest chain of
-        consecutive periods the user ever achieved — not just the current one.
-
-        For example, if the user did 7 days in a row in January but then broke
-        the streak, and is now on a 3-day streak, this method returns 7.
-
-        Returns:
-            int: The all-time longest streak ever.
-        """
-
-        # I get all the completed periods in sorted order
-        completed = self.get_completed_periods()
-
-        # If there are no check-offs, the longest streak is zero
-        if not completed:
-            return 0
-
-        # I start with a current streak of 1 and a max streak of 1
-        current_streak = 1
-        max_streak = 1
-
-        # I go through the list of completed periods from the second item onward
-        for i in range(1, len(completed)):
-            if self._are_consecutive(completed[i - 1], completed[i]):
-                # These two periods are back-to-back — the streak continues
-                current_streak += 1
-                # I update the maximum if this streak is the longest so far
-                if current_streak > max_streak:
-                    max_streak = current_streak
-            else:
-                # There is a gap — I reset the current streak back to 1
-                current_streak = 1
-
-        return max_streak
-
-    # ------------------------------------------------------------------
-    # Method 5 (helper): Check if two period labels are consecutive
-    # ------------------------------------------------------------------
-    def _are_consecutive(self, period_a: str, period_b: str) -> bool:
-        """
-        I check whether period_b comes exactly one step after period_a.
-        - For daily habits: one step = one calendar day.
-        - For weekly habits: one step = one calendar week.
-
-        I use an underscore at the start of the name (_are_consecutive) to show
-        that this is a "private helper" method — it's meant to be used only
-        inside this class, not by outside code.
-
-        Args:
-            period_a (str): The earlier period label.
-            period_b (str): The later period label.
-
-        Returns:
-            bool: True if period_b is exactly one step after period_a, else False.
-        """
+        # I sort the completions from oldest to newest so I can read them in order
+        sorted_times = sorted(self.checkoffs)
 
         if self.periodicity == "daily":
-            # I convert the date strings back into Python date objects so I can do math
-            date_a = date.fromisoformat(period_a)   # e.g. "2024-01-14" → date object
-            date_b = date.fromisoformat(period_b)   # e.g. "2024-01-15" → date object
+            # I get only the date part (no time) from each timestamp
+            # I also remove duplicate dates so one day counts as one completion
+            dates = sorted(set(
+                datetime.strptime(t, "%Y-%m-%d %H:%M:%S").date()
+                for t in sorted_times
+            ))
 
-            # I check if exactly 1 day separates the two dates
-            return (date_b - date_a) == timedelta(days=1)
+            # I start counting from 1 because the last date always counts
+            streak = 1
+            # I go backwards through the dates, checking if each one is one day before the next
+            for i in range(len(dates) - 1, 0, -1):
+                if (dates[i] - dates[i - 1]).days == 1:
+                    # I add one because this day is right after the one before it
+                    streak += 1
+                else:
+                    # The chain is broken so I stop counting
+                    break
+            return streak
 
-        else:  # weekly
-            # Weekly labels look like "2024-W03". I split them to get year and week number.
-            year_a, week_a = int(period_a[:4]), int(period_a[6:])
-            year_b, week_b = int(period_b[:4]), int(period_b[6:])
+        else:
+            # For weekly habits, I get the ISO week number from each timestamp
+            # I also remove duplicate weeks so one week counts as one completion
+            weeks = sorted(set(
+                datetime.strptime(t, "%Y-%m-%d %H:%M:%S").isocalendar()[:2]
+                for t in sorted_times
+            ))
 
-            # I convert both week labels to actual Monday dates, then compare them
-            # Python's fromisocalendar(year, week, 1) gives the Monday of that ISO week
-            monday_a = date.fromisocalendar(year_a, week_a, 1)
-            monday_b = date.fromisocalendar(year_b, week_b, 1)
+            # I start counting from 1 because the last week always counts
+            streak = 1
+            # I go backwards and check if each week is exactly one week before the next
+            for i in range(len(weeks) - 1, 0, -1):
+                year_now,  week_now  = weeks[i]
+                year_prev, week_prev = weeks[i - 1]
+                # I convert the week to a number so subtraction is easy
+                total_now  = year_now  * 52 + week_now
+                total_prev = year_prev * 52 + week_prev
+                if total_now - total_prev == 1:
+                    streak += 1
+                else:
+                    break
+            return streak
 
-            # I check if exactly 7 days (= 1 week) separates the two Mondays
-            return (monday_b - monday_a) == timedelta(weeks=1)
-
-    # ------------------------------------------------------------------
-    # Method 6: Convert this Habit to a dictionary (for saving to JSON/DB)
-    # ------------------------------------------------------------------
-    def to_dict(self) -> dict:
+    def get_longest_streak(self):
         """
-        I convert this Habit object into a plain Python dictionary.
-        This makes it easy to save the habit to a file or database.
+        I find the longest run of consecutive periods this habit has ever had.
+        This is the all-time best, not just the current run.
 
         Returns:
-            dict: A dictionary containing all the habit's data.
+            int: the best streak this habit has ever reached.
+                 Returns 0 if the habit has never been completed.
         """
 
-        # I pack all the important data into a dictionary and return it
+        # I return 0 right away if there are no completions
+        if not self.checkoffs:
+            return 0
+
+        sorted_times = sorted(self.checkoffs)
+
+        if self.periodicity == "daily":
+            dates = sorted(set(
+                datetime.strptime(t, "%Y-%m-%d %H:%M:%S").date()
+                for t in sorted_times
+            ))
+
+            # I keep track of the best and current run
+            best = 1
+            current = 1
+            for i in range(1, len(dates)):
+                if (dates[i] - dates[i - 1]).days == 1:
+                    # I add one because today follows yesterday
+                    current += 1
+                    # I update the best if the current run is now longer
+                    if current > best:
+                        best = current
+                else:
+                    # The run broke so I reset to 1
+                    current = 1
+            return best
+
+        else:
+            weeks = sorted(set(
+                datetime.strptime(t, "%Y-%m-%d %H:%M:%S").isocalendar()[:2]
+                for t in sorted_times
+            ))
+
+            best = 1
+            current = 1
+            for i in range(1, len(weeks)):
+                y1, w1 = weeks[i - 1]
+                y2, w2 = weeks[i]
+                if y2 * 52 + w2 - (y1 * 52 + w1) == 1:
+                    current += 1
+                    if current > best:
+                        best = current
+                else:
+                    current = 1
+            return best
+
+    def to_dict(self):
+        """
+        I turn this Habit object into a plain dictionary.
+        This makes it easy to save the habit to the database.
+
+        Returns:
+            dict: a dictionary with all the habit data.
+        """
+
         return {
             "name":          self.name,
             "description":   self.description,
@@ -263,47 +210,23 @@ class Habit:
             "checkoffs":     self.checkoffs,
         }
 
-    # ------------------------------------------------------------------
-    # Method 7 (class method): Create a Habit from a dictionary
-    # ------------------------------------------------------------------
     @classmethod
-    def from_dict(cls, data: dict):
+    def from_dict(cls, data):
         """
-        I create a Habit object from a dictionary.
-        This is the reverse of to_dict() — I use it when LOADING data
-        from a file or database back into a Habit object.
-
-        The @classmethod decorator means I call this method on the class
-        itself (Habit.from_dict(data)) rather than on an instance.
+        I create a new Habit object from a dictionary.
+        This is used when loading habits from the database.
 
         Args:
-            data (dict): A dictionary with habit data (same format as to_dict()).
+            data (dict): a dictionary with the habit data.
 
         Returns:
-            Habit: A fully reconstructed Habit object.
+            Habit: a new Habit object with all the saved data.
         """
 
-        # I create and return a new Habit using the values from the dictionary
         return cls(
-            name=data["name"],
-            description=data["description"],
-            periodicity=data["periodicity"],
-            creation_date=data.get("creation_date"),
-            checkoffs=data.get("checkoffs", []),
-        )
-
-    # ------------------------------------------------------------------
-    # Method 8: A nice readable string representation of this habit
-    # ------------------------------------------------------------------
-    def __repr__(self) -> str:
-        """
-        I define how this Habit looks when I print it or inspect it.
-        This is useful for debugging — Python calls __repr__ automatically
-        when I print a Habit object.
-        """
-
-        # I return a short, readable description of the habit
-        return (
-            f"Habit(name='{self.name}', periodicity='{self.periodicity}', "
-            f"streak={self.get_current_streak()})"
+            name          = data["name"],
+            description   = data["description"],
+            periodicity   = data["periodicity"],
+            creation_date = data.get("creation_date"),
+            checkoffs     = data.get("checkoffs", []),
         )

@@ -1,231 +1,181 @@
 """
 db.py
------
-I handle all saving and loading of habit data here.
-I use Python's built-in SQLite database (sqlite3) — a simple file-based database
-that requires NO installation. The database is stored as a single file: habits.db
 
-Think of this file as the "memory" of the app — without it, all habits would
-be forgotten every time the user closes the program.
+I handle all communication between the app and the database.
+I use SQLite, which is a simple file-based database built into Python.
+No extra software is needed.
+
+The database file is called habits.db and it sits in the same folder
+as the rest of the project.
 """
 
-# I import sqlite3 — Python comes with this built-in, no pip install needed!
+# I import sqlite3 to talk to the database
 import sqlite3
 
-# I import os so I can build file paths that work on any operating system
-import os
+# I import json so I can save the list of check-off times as text
+import json
 
-# I import the Habit class from my habit.py file so I can work with Habit objects
+# I import the Habit class so I can create Habit objects from database rows
 from habit import Habit
 
 
-# I define the name of the database file here in one place.
-# If I ever want to rename or move the file, I only change it in ONE spot.
-DB_FILE = "habits.db"
-
-
-def get_connection(db_path: str = DB_FILE):
+def setup_database():
     """
-    I open a connection to the SQLite database file.
-    If the file does not exist yet, SQLite creates it automatically for me.
+    I create the two database tables if they do not already exist.
+    This runs every time the app starts, but it only creates tables
+    if they are missing, so existing data is never deleted.
 
-    Args:
-        db_path (str): The path to the .db file. Default is "habits.db".
-
-    Returns:
-        sqlite3.Connection: An open connection to the database.
+    Tables created:
+        habits   : stores one row per habit
+        checkoffs: stores one row per completion record
     """
 
-    # I connect to (or create) the SQLite database file
-    conn = sqlite3.connect(db_path)
-    return conn
-
-
-def setup_database(db_path: str = DB_FILE):
-    """
-    I create the database tables if they don't already exist.
-    I must call this function ONCE when the app starts for the first time.
-
-    My database has 2 tables:
-      1. habits       — stores the name, description, periodicity, creation_date
-      2. checkoffs    — stores each time a habit was checked off (completed)
-
-    The two tables are linked: each checkoff row knows which habit it belongs to
-    (this is called a FOREIGN KEY relationship).
-
-    Args:
-        db_path (str): The path to the .db file.
-    """
-
-    # I open a connection to the database
-    conn = get_connection(db_path)
-
-    # I get a "cursor" — think of it as a pen I use to write SQL commands
+    # I open a connection to the database file
+    conn = sqlite3.connect("habits.db")
     cursor = conn.cursor()
 
-    # I create the "habits" table if it does not exist yet.
-    # Each habit has: an auto-generated ID, a name, description, periodicity, and creation_date.
+    # I create the habits table to store each habit's basic details
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS habits (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            name          TEXT    NOT NULL UNIQUE,
+            name          TEXT UNIQUE NOT NULL,
             description   TEXT,
-            periodicity   TEXT    NOT NULL,
-            creation_date TEXT    NOT NULL
+            periodicity   TEXT,
+            creation_date TEXT
         )
     """)
 
-    # I create the "checkoffs" table if it does not exist yet.
-    # Each row records ONE check-off event: which habit was checked and when.
+    # I create the checkoffs table to store each time a habit was completed
+    # habit_name links back to the habits table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS checkoffs (
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            habit_name TEXT    NOT NULL,
-            timestamp  TEXT    NOT NULL,
-            FOREIGN KEY (habit_name) REFERENCES habits (name)
+            habit_name TEXT NOT NULL,
+            timestamp  TEXT NOT NULL,
+            FOREIGN KEY (habit_name) REFERENCES habits(name)
         )
     """)
 
-    # I save (commit) the changes to the database file
+    # I save the changes and close the connection
     conn.commit()
-
-    # I close the connection — good practice to always close when done
     conn.close()
 
 
-def save_habit(habit: Habit, db_path: str = DB_FILE):
+def save_habit(habit):
     """
-    I save ONE habit to the database.
-    If a habit with this name already exists, I update it instead of adding a duplicate.
+    I save a habit to the database.
+    If the habit already exists, I update it.
+    If it is new, I add it.
+    I also save all its check-off records.
 
     Args:
-        habit (Habit): The Habit object I want to save.
-        db_path (str): The path to the .db file.
+        habit (Habit): the Habit object to save.
     """
 
-    # I open the database
-    conn = get_connection(db_path)
+    conn = sqlite3.connect("habits.db")
     cursor = conn.cursor()
 
-    # I use "INSERT OR REPLACE" — this inserts a new row, OR replaces the existing one
-    # if a habit with the same name is already in the database
+    # I insert the habit or replace it if it already exists
     cursor.execute("""
         INSERT OR REPLACE INTO habits (name, description, periodicity, creation_date)
         VALUES (?, ?, ?, ?)
     """, (habit.name, habit.description, habit.periodicity, habit.creation_date))
 
-    # I now save all the check-offs for this habit.
-    # First, I delete any old check-offs so I don't create duplicates
+    # I remove old check-off records for this habit before saving the new ones
     cursor.execute("DELETE FROM checkoffs WHERE habit_name = ?", (habit.name,))
 
-    # Then, I insert ALL the check-offs fresh from the Habit object
-    for ts in habit.checkoffs:
-        cursor.execute("""
-            INSERT INTO checkoffs (habit_name, timestamp)
-            VALUES (?, ?)
-        """, (habit.name, ts))
+    # I save each check-off timestamp as a separate row in the checkoffs table
+    for timestamp in habit.checkoffs:
+        cursor.execute(
+            "INSERT INTO checkoffs (habit_name, timestamp) VALUES (?, ?)",
+            (habit.name, timestamp)
+        )
 
-    # I save all my changes to the database file
     conn.commit()
-
-    # I close the connection
     conn.close()
 
 
-def load_all_habits(db_path: str = DB_FILE) -> list:
+def load_all_habits():
     """
-    I load ALL habits from the database and return them as a list of Habit objects.
+    I load all habits from the database and return them as a list of Habit objects.
 
     Returns:
-        list: A list of Habit objects loaded from the database.
+        List[Habit]: a list of all habits with their check-off records included.
     """
 
-    # I open the database
-    conn = get_connection(db_path)
+    conn = sqlite3.connect("habits.db")
     cursor = conn.cursor()
 
-    # I fetch all rows from the habits table
+    # I get all rows from the habits table
     cursor.execute("SELECT name, description, periodicity, creation_date FROM habits")
-    habit_rows = cursor.fetchall()  # I get all results at once
+    rows = cursor.fetchall()
 
-    # I build a list of Habit objects from the database rows
     habits = []
-    for row in habit_rows:
+    for row in rows:
         name, description, periodicity, creation_date = row
 
-        # I fetch all check-offs that belong to this specific habit
+        # I get all check-off timestamps for this habit
         cursor.execute(
             "SELECT timestamp FROM checkoffs WHERE habit_name = ? ORDER BY timestamp",
             (name,)
         )
         checkoff_rows = cursor.fetchall()
-
-        # I extract just the timestamp string from each row (each row is a tuple like ("2024-01-01 09:00:00",))
+        # I pull the timestamp string out of each row tuple
         checkoffs = [r[0] for r in checkoff_rows]
 
-        # I create a Habit object and add it to my list
+        # I create a Habit object with all the loaded data
         habit = Habit(
             name=name,
             description=description,
             periodicity=periodicity,
             creation_date=creation_date,
-            checkoffs=checkoffs,
+            checkoffs=checkoffs
         )
         habits.append(habit)
 
-    # I close the connection and return the full list
     conn.close()
     return habits
 
 
-def delete_habit(name: str, db_path: str = DB_FILE):
+def delete_habit(habit_name):
     """
-    I permanently delete a habit (and all its check-offs) from the database.
+    I remove a habit and all its check-off records from the database.
 
     Args:
-        name (str): The exact name of the habit to delete.
-        db_path (str): The path to the .db file.
+        habit_name (str): the name of the habit to delete.
     """
 
-    # I open the database
-    conn = get_connection(db_path)
+    conn = sqlite3.connect("habits.db")
     cursor = conn.cursor()
 
-    # I delete all check-offs for this habit first (so I don't leave orphaned data behind)
-    cursor.execute("DELETE FROM checkoffs WHERE habit_name = ?", (name,))
+    # I delete the check-off records first because they link to the habit
+    cursor.execute("DELETE FROM checkoffs WHERE habit_name = ?", (habit_name,))
 
-    # Now I delete the habit itself from the habits table
-    cursor.execute("DELETE FROM habits WHERE name = ?", (name,))
+    # I then delete the habit itself
+    cursor.execute("DELETE FROM habits WHERE name = ?", (habit_name,))
 
-    # I save (commit) the deletion to the database file
     conn.commit()
-
-    # I close the connection
     conn.close()
 
 
-def habit_exists(name: str, db_path: str = DB_FILE) -> bool:
+def habit_exists(habit_name):
     """
-    I check whether a habit with the given name already exists in the database.
+    I check whether a habit with a given name already exists in the database.
 
     Args:
-        name (str): The habit name to look for.
-        db_path (str): The path to the .db file.
+        habit_name (str): the name to look up.
 
     Returns:
         bool: True if the habit exists, False if it does not.
     """
 
-    # I open the database
-    conn = get_connection(db_path)
+    conn = sqlite3.connect("habits.db")
     cursor = conn.cursor()
 
-    # I search for a habit with this exact name
-    cursor.execute("SELECT 1 FROM habits WHERE name = ?", (name,))
-
-    # fetchone() returns one row if found, or None if not found
+    cursor.execute("SELECT 1 FROM habits WHERE name = ?", (habit_name,))
     result = cursor.fetchone()
 
-    # I close the connection and return True if I found something, False otherwise
     conn.close()
+
+    # I return True if a row was found, False if not
     return result is not None

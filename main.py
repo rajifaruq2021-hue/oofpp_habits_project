@@ -1,506 +1,342 @@
 """
 main.py
--------
-I am the MAIN entry point for the Habit Tracker App.
-I provide a simple, interactive command-line menu that the user can navigate
-by typing numbers. No complex commands needed — just pick a number!
+
+I am the main entry point for the Habit Tracker App.
+I show a simple numbered menu that the user can navigate
+by typing a number and pressing Enter.
 
 When the user runs: python main.py
 This file starts and shows the main menu.
 
-Menu structure:
-  1. View all habits
-  2. Add a new habit
-  3. Check off a habit (mark it as done)
-  4. Delete a habit
-  5. Analyse habits
-  6. Exit
+Menu options:
+    1. View all habits
+    2. Add a new habit
+    3. Check off a habit (mark it as done)
+    4. Delete a habit
+    5. Analyse habits
+    6. Exit
 """
 
-# I import the os module so I can clear the screen (makes the menu look clean)
+# I import the os module so I can clear the screen to keep the menu tidy
 import os
 
 # I import datetime so I can show the current date and time to the user
 from datetime import datetime
 
-# I import my own modules that I created for this project
+# I import my own modules
 import db           # handles saving and loading from the database
 import analytics    # provides all the analysis functions
 import seed_data    # loads the 5 pre-defined example habits
-from habit import Habit  # the Habit class I defined in habit.py
+from habit import Habit   # the Habit class I defined in habit.py
 
-
-# I define the path to my SQLite database file here in ONE place
-# so it's easy to change later if needed
-DB_PATH = "habits.db"
-
-
-# =======================================================================
-# HELPER FUNCTIONS — small tools I use throughout the app
-# =======================================================================
 
 def clear_screen():
     """
-    I clear the terminal screen to keep the interface looking tidy.
-    I use 'cls' on Windows and 'clear' on Mac/Linux.
+    I clear the terminal screen so the menu looks clean each time.
+    This works on both Windows and Linux/Mac.
     """
-    # I check the operating system and run the right clear command
     os.system("cls" if os.name == "nt" else "clear")
 
 
-def print_separator():
+def show_header():
     """
-    I print a simple line of dashes to visually separate sections in the menu.
-    This makes the output much easier to read.
+    I print a simple header at the top of every menu page.
     """
-    # I print 55 dashes as a visual divider
-    print("-" * 55)
+    print("=" * 50)
+    print("      HABIT TRACKER APP")
+    print(f"      {datetime.now().strftime('%Y-%m-%d  %H:%M')}")
+    print("=" * 50)
+    print()
 
 
-def press_enter_to_continue():
+def list_habits(habits):
     """
-    I pause the program and wait for the user to press Enter before continuing.
-    This gives the user time to read the output before the screen changes.
-    """
-    # I display a prompt and wait for any input from the user
-    input("\n  Press ENTER to return to the main menu...")
-
-
-# =======================================================================
-# DISPLAY FUNCTIONS — functions that show information to the user
-# =======================================================================
-
-def display_main_menu():
-    """
-    I draw the main menu on the screen.
-    I show the current date and time so the user is aware of when they are.
-    """
-
-    # I clear the screen first for a fresh look
-    clear_screen()
-
-    # I get the current date and time and format it nicely
-    now = datetime.now().strftime("%A, %d %B %Y  |  %H:%M")
-
-    # I print the app header and the date/time
-    print("\n" + "=" * 55)
-    print("      🌟  MY HABIT TRACKER  🌟")
-    print(f"      {now}")
-    print("=" * 55)
-
-    # I print each menu option with a number the user can type
-    print("  1. 📋  View all my habits")
-    print("  2. ➕  Add a new habit")
-    print("  3. ✅  Check off a habit (mark as done today)")
-    print("  4. 🗑️  Delete a habit")
-    print("  5. 📊  Analyse my habits")
-    print("  6. 🚪  Exit")
-    print_separator()
-
-
-def display_all_habits(habits: list):
-    """
-    I display a nicely formatted table of all habits.
+    I show a numbered list of all habits with their current streaks.
 
     Args:
-        habits (list): The list of Habit objects to display.
+        habits (list): the list of Habit objects to display.
     """
 
-    # I clear the screen and print a title
-    clear_screen()
-    print("\n" + "=" * 55)
-    print("  📋  ALL MY HABITS")
-    print("=" * 55)
-
-    # I check if there are any habits to show at all
     if not habits:
-        print("  You have no habits yet. Add one from the main menu!")
+        print("You have no habits yet. Add one first.")
         return
 
-    # I use the analytics module to get a summary for each habit
-    summaries = analytics.get_habit_summary(habits)
-
-    # I print each habit's summary in a readable format
-    for i, s in enumerate(summaries, start=1):
-        # I print the habit number, name, and periodicity
-        print(f"\n  [{i}] {s['name']}  ({s['periodicity'].upper()})")
-        print(f"      Description  : {s['description']}")
-        print(f"      Current Streak: {s['current_streak']} {s['periodicity'].replace('daily','day(s)').replace('weekly','week(s)')}")
-        print(f"      Longest Streak: {s['longest_streak']} {s['periodicity'].replace('daily','day(s)').replace('weekly','week(s)')}")
-        print(f"      Total Check-offs: {s['total_checkoffs']}")
-        print_separator()
+    print(f"{'No.':<5} {'Name':<22} {'Type':<10} {'Streak':<8} {'Best'}")
+    print("-" * 55)
+    for i, h in enumerate(habits, 1):
+        current = h.get_current_streak()
+        best    = h.get_longest_streak()
+        print(f"{i:<5} {h.name:<22} {h.periodicity:<10} {current:<8} {best}")
+    print()
 
 
-def display_analysis_menu(habits: list):
+def view_all_habits(habits):
     """
-    I show the analytics sub-menu and let the user choose what to analyse.
+    I show all habits on the screen and wait for the user to press Enter.
+    """
+    clear_screen()
+    show_header()
+    print("All habits:")
+    print()
+    list_habits(habits)
+    input("Press Enter to go back to the menu.")
+
+
+def add_new_habit(habits):
+    """
+    I ask the user for a name, description, and type,
+    then create a new Habit and save it to the database.
 
     Args:
-        habits (list): The list of Habit objects to analyse.
+        habits (list): the current list of habits (I add to this list).
+    """
+    clear_screen()
+    show_header()
+    print("Add a New Habit")
+    print("-" * 30)
+
+    name = input("Habit name: ").strip()
+    if not name:
+        print("Name cannot be empty.")
+        input("Press Enter to go back.")
+        return
+
+    # I check if a habit with this name already exists
+    if any(h.name.lower() == name.lower() for h in habits):
+        print(f"A habit called '{name}' already exists.")
+        input("Press Enter to go back.")
+        return
+
+    description = input("Short description: ").strip()
+
+    # I ask for the type and keep asking until the user gives a valid answer
+    while True:
+        periodicity = input("Type (daily / weekly): ").strip().lower()
+        if periodicity in ("daily", "weekly"):
+            break
+        print("Please type 'daily' or 'weekly'.")
+
+    # I create and save the new habit
+    new_habit = Habit(name=name, description=description, periodicity=periodicity)
+    habits.append(new_habit)
+    db.save_habit(new_habit)
+
+    print(f"Habit '{name}' has been added.")
+    input("Press Enter to go back to the menu.")
+
+
+def checkoff_habit(habits):
+    """
+    I let the user pick a habit and mark it as done right now.
+
+    Args:
+        habits (list): the list of all habits.
+    """
+    clear_screen()
+    show_header()
+    print("Check Off a Habit")
+    print("-" * 30)
+    list_habits(habits)
+
+    if not habits:
+        input("Press Enter to go back.")
+        return
+
+    try:
+        choice = int(input("Enter the habit number to check off: "))
+        if choice < 1 or choice > len(habits):
+            print("That number is not in the list.")
+            input("Press Enter to go back.")
+            return
+    except ValueError:
+        print("Please enter a number.")
+        input("Press Enter to go back.")
+        return
+
+    # I mark the chosen habit as done and save it
+    habit = habits[choice - 1]
+    habit.checkoff()
+    db.save_habit(habit)
+
+    print(f"Well done! '{habit.name}' has been checked off.")
+    input("Press Enter to go back to the menu.")
+
+
+def delete_habit_menu(habits):
+    """
+    I let the user pick a habit and delete it after confirming.
+
+    Args:
+        habits (list): the list of all habits.
+    """
+    clear_screen()
+    show_header()
+    print("Delete a Habit")
+    print("-" * 30)
+    list_habits(habits)
+
+    if not habits:
+        input("Press Enter to go back.")
+        return
+
+    try:
+        choice = int(input("Enter the habit number to delete: "))
+        if choice < 1 or choice > len(habits):
+            print("That number is not in the list.")
+            input("Press Enter to go back.")
+            return
+    except ValueError:
+        print("Please enter a number.")
+        input("Press Enter to go back.")
+        return
+
+    habit = habits[choice - 1]
+
+    # I ask the user to confirm before deleting
+    confirm = input(f"Are you sure you want to delete '{habit.name}'? (yes / no): ").strip().lower()
+    if confirm == "yes":
+        db.delete_habit(habit.name)
+        habits.remove(habit)
+        print(f"'{habit.name}' has been deleted.")
+    else:
+        print("Deletion cancelled.")
+
+    input("Press Enter to go back to the menu.")
+
+
+def analyse_habits_menu(habits):
+    """
+    I show a small sub-menu with five analysis options the user can choose from.
+
+    Args:
+        habits (list): the list of all habits.
     """
 
-    # I keep showing the analysis menu until the user chooses "Back"
     while True:
         clear_screen()
-        print("\n" + "=" * 55)
-        print("  📊  ANALYSE MY HABITS")
-        print("=" * 55)
-        print("  1. Show all daily habits")
-        print("  2. Show all weekly habits")
-        print("  3. Find the longest streak across ALL habits")
-        print("  4. Find the longest streak for ONE specific habit")
-        print("  5. Show habits I am struggling with")
-        print("  6. ← Back to main menu")
-        print_separator()
+        show_header()
+        print("Analyse Habits")
+        print("-" * 30)
+        print("1. Show all habits")
+        print("2. Show only daily habits")
+        print("3. Show only weekly habits")
+        print("4. Show the longest streak across all habits")
+        print("5. Show the longest streak for one habit")
+        print("6. Back to main menu")
+        print()
 
-        # I ask the user to pick an option
-        choice = input("  Enter your choice (1-6): ").strip()
+        choice = input("Pick an option (1-6): ").strip()
 
         if choice == "1":
-            # I want to see only the daily habits
-            daily = analytics.get_habits_by_periodicity(habits, "daily")
+            # I show all habits with their streaks
             clear_screen()
-            print("\n  📅  DAILY HABITS")
-            print_separator()
-            if not daily:
-                print("  You have no daily habits yet.")
-            else:
-                for h in daily:
-                    # I print each daily habit's name and current streak
-                    print(f"  • {h.name}  |  Current streak: {h.get_current_streak()} day(s)")
-            press_enter_to_continue()
+            show_header()
+            print("All habits:")
+            print()
+            list_habits(analytics.get_all_habits(habits))
+            input("Press Enter to continue.")
 
         elif choice == "2":
-            # I want to see only the weekly habits
-            weekly = analytics.get_habits_by_periodicity(habits, "weekly")
+            # I show only daily habits
             clear_screen()
-            print("\n  🗓️  WEEKLY HABITS")
-            print_separator()
-            if not weekly:
-                print("  You have no weekly habits yet.")
-            else:
-                for h in weekly:
-                    print(f"  • {h.name}  |  Current streak: {h.get_current_streak()} week(s)")
-            press_enter_to_continue()
+            show_header()
+            print("Daily habits:")
+            print()
+            list_habits(analytics.get_habits_by_periodicity(habits, "daily"))
+            input("Press Enter to continue.")
 
         elif choice == "3":
-            # I want to find the single best streak across all my habits
-            best = analytics.get_longest_streak_all(habits)
+            # I show only weekly habits
             clear_screen()
-            print("\n  🏆  LONGEST STREAK ACROSS ALL HABITS")
-            print_separator()
-            print(f"  My personal best streak is: {best} period(s) in a row!")
-            press_enter_to_continue()
+            show_header()
+            print("Weekly habits:")
+            print()
+            list_habits(analytics.get_habits_by_periodicity(habits, "weekly"))
+            input("Press Enter to continue.")
 
         elif choice == "4":
-            # I want to look up the best streak for one particular habit
+            # I show the best streak across all habits
             clear_screen()
-            print("\n  🔍  LONGEST STREAK FOR A SPECIFIC HABIT")
-            print_separator()
-            habit_name = input("  Enter the habit name: ").strip()
-            result = analytics.get_longest_streak_for_habit(habits, habit_name)
-            if result == -1:
-                print(f"  ❌ I could not find a habit named '{habit_name}'.")
-            else:
-                print(f"  My longest streak for '{habit_name}' is: {result} period(s)!")
-            press_enter_to_continue()
+            show_header()
+            best = analytics.get_longest_streak_all(habits)
+            print(f"The longest streak across all habits is: {best} period(s)")
+            print()
+            input("Press Enter to continue.")
 
         elif choice == "5":
-            # I want to see which habits I am struggling with (streak broken)
-            struggling = analytics.get_struggling_habits(habits)
+            # I ask for a habit name and show its best streak
             clear_screen()
-            print("\n  😓  HABITS I AM STRUGGLING WITH")
-            print_separator()
-            if not struggling:
-                print("  Great job! I am not struggling with any habits right now.")
+            show_header()
+            list_habits(habits)
+            name = input("Enter the habit name: ").strip()
+            result = analytics.get_longest_streak_for_habit(habits, name)
+            if result == -1:
+                print(f"No habit called '{name}' was found.")
             else:
-                for h in struggling:
-                    print(f"  • {h.name}  ({h.periodicity})  — streak broken!")
-            press_enter_to_continue()
+                print(f"The longest streak for '{name}' is: {result} period(s)")
+            input("Press Enter to continue.")
 
         elif choice == "6":
             # I go back to the main menu
             break
+
         else:
-            # The user typed something unexpected — I show an error
-            print("  ⚠️  Please enter a number between 1 and 6.")
-            press_enter_to_continue()
+            print("Please pick a number between 1 and 6.")
+            input("Press Enter to try again.")
 
-
-# =======================================================================
-# ACTION FUNCTIONS — functions that make changes (add, check-off, delete)
-# =======================================================================
-
-def add_habit(habits: list) -> list:
-    """
-    I guide the user step by step to create a brand new habit.
-    After creating it, I save it to the database and add it to my list.
-
-    Args:
-        habits (list): The current list of habits (I add the new one to it).
-
-    Returns:
-        list: The updated list of habits (with the new habit included).
-    """
-
-    clear_screen()
-    print("\n" + "=" * 55)
-    print("  ➕  ADD A NEW HABIT")
-    print("=" * 55)
-
-    # I ask the user for the habit name
-    name = input("  Enter habit name (e.g. 'Drink Water'): ").strip()
-
-    # I check that the name is not empty
-    if not name:
-        print("  ⚠️  Habit name cannot be empty.")
-        press_enter_to_continue()
-        return habits
-
-    # I check that this habit name doesn't already exist
-    if db.habit_exists(name, DB_PATH):
-        print(f"  ⚠️  A habit named '{name}' already exists!")
-        press_enter_to_continue()
-        return habits
-
-    # I ask the user for a short description
-    description = input("  Enter a short description: ").strip()
-
-    # I ask the user to choose daily or weekly
-    print("  Periodicity — how often must this habit be done?")
-    print("    1. Daily")
-    print("    2. Weekly")
-    period_choice = input("  Enter 1 or 2: ").strip()
-
-    # I map the user's choice to the correct periodicity string
-    if period_choice == "1":
-        periodicity = "daily"
-    elif period_choice == "2":
-        periodicity = "weekly"
-    else:
-        # The user typed something invalid
-        print("  ⚠️  Invalid choice. Please enter 1 or 2.")
-        press_enter_to_continue()
-        return habits
-
-    # I create a new Habit object with the information the user gave me
-    new_habit = Habit(name=name, description=description, periodicity=periodicity)
-
-    # I save the new habit to the SQLite database
-    db.save_habit(new_habit, DB_PATH)
-
-    # I add the new habit to my in-memory list as well
-    habits.append(new_habit)
-
-    # I confirm success to the user
-    print(f"\n  ✅  Habit '{name}' ({periodicity}) has been created successfully!")
-    press_enter_to_continue()
-
-    # I return the updated list so the caller knows about the new habit
-    return habits
-
-
-def checkoff_habit(habits: list) -> list:
-    """
-    I let the user mark a habit as done right now.
-    I record the current date and time as the check-off timestamp.
-
-    Args:
-        habits (list): The current list of habits.
-
-    Returns:
-        list: The updated list (with the check-off recorded).
-    """
-
-    clear_screen()
-    print("\n" + "=" * 55)
-    print("  ✅  CHECK OFF A HABIT (Mark as Done)")
-    print("=" * 55)
-
-    # I show the user all their habits with a number next to each one
-    if not habits:
-        print("  You have no habits yet. Please add one first.")
-        press_enter_to_continue()
-        return habits
-
-    for i, h in enumerate(habits, start=1):
-        print(f"  [{i}] {h.name}  ({h.periodicity})")
-
-    print_separator()
-
-    # I ask the user to pick which habit they completed
-    raw = input("  Enter the number of the habit you completed: ").strip()
-
-    # I make sure the user typed a valid number
-    try:
-        index = int(raw) - 1  # I subtract 1 because lists start at 0
-        if index < 0 or index >= len(habits):
-            raise ValueError()  # I raise an error if the number is out of range
-    except ValueError:
-        print("  ⚠️  That is not a valid number.")
-        press_enter_to_continue()
-        return habits
-
-    # I get the selected habit from my list
-    selected_habit = habits[index]
-
-    # I mark it as done right now (using the current timestamp)
-    selected_habit.checkoff()
-
-    # I save the updated habit (with the new check-off) to the database
-    db.save_habit(selected_habit, DB_PATH)
-
-    # I confirm success to the user and show the new streak
-    print(f"\n  ✅  '{selected_habit.name}' has been checked off!")
-    print(f"      Current streak: {selected_habit.get_current_streak()} period(s) in a row! 🔥")
-    press_enter_to_continue()
-
-    return habits
-
-
-def delete_habit_ui(habits: list) -> list:
-    """
-    I let the user permanently delete a habit from the database.
-    I ask for confirmation before deleting so the user doesn't
-    accidentally lose data.
-
-    Args:
-        habits (list): The current list of habits.
-
-    Returns:
-        list: The updated list (with the deleted habit removed).
-    """
-
-    clear_screen()
-    print("\n" + "=" * 55)
-    print("  🗑️  DELETE A HABIT")
-    print("=" * 55)
-
-    # I show the list of habits so the user can choose one
-    if not habits:
-        print("  You have no habits to delete.")
-        press_enter_to_continue()
-        return habits
-
-    for i, h in enumerate(habits, start=1):
-        print(f"  [{i}] {h.name}  ({h.periodicity})")
-
-    print_separator()
-
-    # I ask the user which habit to delete
-    raw = input("  Enter the number of the habit to delete: ").strip()
-
-    # I validate the input
-    try:
-        index = int(raw) - 1
-        if index < 0 or index >= len(habits):
-            raise ValueError()
-    except ValueError:
-        print("  ⚠️  That is not a valid number.")
-        press_enter_to_continue()
-        return habits
-
-    # I get the selected habit
-    selected_habit = habits[index]
-
-    # I ask the user to confirm before deleting — deleting is permanent!
-    confirm = input(
-        f"\n  ⚠️  Are you sure you want to delete '{selected_habit.name}'?\n"
-        f"  This cannot be undone! Type 'yes' to confirm: "
-    ).strip().lower()
-
-    if confirm == "yes":
-        # I delete the habit from the database permanently
-        db.delete_habit(selected_habit.name, DB_PATH)
-
-        # I also remove it from my in-memory list
-        habits.pop(index)
-
-        print(f"\n  🗑️  Habit '{selected_habit.name}' has been deleted.")
-    else:
-        # The user did NOT confirm — I cancel the deletion
-        print("  ↩️  Deletion cancelled. The habit is still there.")
-
-    press_enter_to_continue()
-    return habits
-
-
-# =======================================================================
-# MAIN FUNCTION — the heart of the app that ties everything together
-# =======================================================================
 
 def main():
     """
-    I am the main function. I run the whole app.
-    I:
-      1. Set up the database
-      2. Load the 5 pre-defined habits (only on first run)
-      3. Load all habits from the database
-      4. Show the main menu in a loop until the user chooses to exit
+    I am the main function that starts the app.
+    I set up the database, load habits, and show the menu in a loop.
     """
 
-    # ----- Step 1: I make sure the database tables exist -----
-    # (If this is the first time running, this creates the database file)
-    db.setup_database(DB_PATH)
+    # I set up the database tables if they do not exist yet
+    db.setup_database()
 
-    # ----- Step 2: I load the 5 pre-defined example habits -----
-    # (This only adds them if they don't already exist)
-    print("\n  🌱  Loading pre-defined habits...")
-    seed_data.load_predefined_habits(DB_PATH)
+    # I load all saved habits from the database
+    habits = db.load_all_habits()
 
-    # ----- Step 3: I load ALL habits from the database into memory -----
-    # (This is the list I will use throughout the entire session)
-    habits = db.load_all_habits(DB_PATH)
+    # I load the example habits only if the database is empty
+    if not habits:
+        print("Loading example habits for the first time...")
+        seed_data.load_predefined_habits()
+        habits = db.load_all_habits()
 
-    print(f"\n  ✅  Loaded {len(habits)} habit(s) from the database.")
-    input("  Press ENTER to open the main menu...")
-
-    # ----- Step 4: I run the main menu loop -----
-    # I keep showing the menu until the user chooses to exit (option 6)
+    # I keep showing the menu until the user picks Exit
     while True:
-        # I display the main menu
-        display_main_menu()
+        clear_screen()
+        show_header()
+        print("What would you like to do?")
+        print()
+        print("1. View all habits")
+        print("2. Add a new habit")
+        print("3. Check off a habit")
+        print("4. Delete a habit")
+        print("5. Analyse habits")
+        print("6. Exit")
+        print()
 
-        # I ask the user to choose an option
-        choice = input("  Enter your choice (1-6): ").strip()
+        choice = input("Pick an option (1-6): ").strip()
 
         if choice == "1":
-            # I show all habits to the user
-            display_all_habits(habits)
-            press_enter_to_continue()
-
+            view_all_habits(habits)
         elif choice == "2":
-            # I guide the user to create a new habit
-            habits = add_habit(habits)
-
+            add_new_habit(habits)
         elif choice == "3":
-            # I let the user check off (complete) a habit
-            habits = checkoff_habit(habits)
-
+            checkoff_habit(habits)
         elif choice == "4":
-            # I let the user delete a habit
-            habits = delete_habit_ui(habits)
-
+            delete_habit_menu(habits)
         elif choice == "5":
-            # I show the analytics sub-menu
-            display_analysis_menu(habits)
-
+            analyse_habits_menu(habits)
         elif choice == "6":
-            # I say goodbye and exit the app
-            clear_screen()
-            print("\n  👋  Goodbye! Keep building great habits! See you next time.\n")
-            break   # I break out of the while loop — this ends the program
-
+            print("Goodbye! Keep up your good habits.")
+            break
         else:
-            # The user typed something unexpected
-            print("  ⚠️  Please enter a number between 1 and 6.")
-            press_enter_to_continue()
+            print("Please pick a number between 1 and 6.")
+            input("Press Enter to try again.")
 
 
-# =======================================================================
-# ENTRY POINT
-# This is a Python convention: I only run main() if THIS file is being
-# run directly (not imported by another file).
-# =======================================================================
+# I call main() only when this file is run directly
 if __name__ == "__main__":
     main()
