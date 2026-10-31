@@ -299,7 +299,7 @@ def main():
 
     # I load the example habits only if the database is empty
     if not habits:
-        print("Loading example habits for the first time...")
+        print("Loading example habits for the first time.")
         seed_data.load_predefined_habits()
         habits = db.load_all_habits()
 
